@@ -11,8 +11,8 @@ public class DefaultKeyStoreJsonSerializer : IJsonSerializer
         return JsonConvert.SerializeObject(obj, Formatting.None);
     }
 
-    public T? Deserialize<T>(string json)
+    public T? Deserialize<T>(Type storedType, string json)
     {
-        return JsonConvert.DeserializeObject<T>(json);
+        return (T?)JsonConvert.DeserializeObject(json, storedType);
     }
 }

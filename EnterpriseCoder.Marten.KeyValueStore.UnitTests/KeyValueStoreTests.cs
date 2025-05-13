@@ -53,7 +53,12 @@ public class KeyValueStoreTests : IClassFixture<DatabaseTestFixture>, IDisposabl
                 await documentSession.SaveChangesAsync();
                 value1Present = await _keyValueStore.HasKeyAsync(documentSession, "UnitTesting.Value1");
                 Assert.False(value1Present);
-
+                
+                // Delete Value2 
+                await _keyValueStore.DeleteKeyAsync(documentSession, "UnitTesting.Value2");
+                await documentSession.SaveChangesAsync();
+                bool value2Present = await _keyValueStore.HasKeyAsync(documentSession, "UnitTesting.Value2");
+                Assert.False(value2Present);
             }
         }
     }
@@ -131,6 +136,18 @@ public class KeyValueStoreTests : IClassFixture<DatabaseTestFixture>, IDisposabl
                 Animal? reloadDog =
                     await _keyValueStore.GetObjectAsync<Animal>(documentSession, "UnitTesting.Animal", null);
                 Assert.NotNull(reloadDog);
+                Assert.Equal(typeof(Dog), reloadDog!.GetType());
+                
+                // Write the cat as an animal
+                Animal catAsAnimal = cat;
+                await _keyValueStore.SetObjectAsync(documentSession, "UnitTesting.Animal", catAsAnimal);
+                await documentSession.SaveChangesAsync();
+
+                // Read the cat as an animal
+                Animal? reloadCat = await _keyValueStore.GetObjectAsync<Animal>(documentSession, "UnitTesting.Animal", null);
+                Assert.NotNull(reloadCat);
+                Assert.Equal(typeof(Cat), reloadCat!.GetType());
+
             }
         }
     }

@@ -1,5 +1,4 @@
 ﻿using System.Globalization;
-using System.Reflection;
 using EnterpriseCoder.Marten.KeyValueStore.Entities;
 using EnterpriseCoder.Marten.KeyValueStore.Exceptions;
 using EnterpriseCoder.Marten.KeyValueStore.Json;
@@ -13,7 +12,7 @@ public class KeyValueStore : IKeyValueStore
     private readonly KeyValueEntryProcedures _keyValueEntryProcedures = new();
 
     private async Task<T> _GetAsyncWithConversion<T>(IDocumentSession documentSession, string key, T defaultValue,
-        Func<string?, T, T> valueParser)
+        Func<string?, Type, T, T> valueParser)
     {
         var targetEntry = await _keyValueEntryProcedures.GetValueAsync(documentSession, key);
         if (targetEntry == null)
@@ -33,7 +32,7 @@ public class KeyValueStore : IKeyValueStore
             throw new KeyStoreValueException($"Value '{key}' was stored as type '{targetEntry.TypeName}' but is being retrieved as type '{typeof(T).FullName}'");
         }
         
-        return valueParser(targetEntry.Value, defaultValue);
+        return valueParser(targetEntry.Value, storedType, defaultValue);
     }
 
     private async Task _SetAsyncWithConversion<T>(IDocumentSession documentSession, string key, T value,
@@ -42,7 +41,7 @@ public class KeyValueStore : IKeyValueStore
         var targetEntry = await _keyValueEntryProcedures.GetValueAsync(documentSession, key);
         if (targetEntry == null)
         {
-            targetEntry = new KeyValueEntry()
+            targetEntry = new KeyValueEntry
             {
                 Key = key,
                 TypeName = typeof(T).FullName!
@@ -74,7 +73,7 @@ public class KeyValueStore : IKeyValueStore
 
     public async Task<bool> GetBoolAsync(IDocumentSession documentSession, string key, bool defaultValue)
     {
-        return await _GetAsyncWithConversion(documentSession, key, defaultValue, (inString, inDefault) =>
+        return await _GetAsyncWithConversion(documentSession, key, defaultValue, (inString, _, inDefault) =>
         {
             if (!bool.TryParse(inString, out var result))
             {
@@ -87,7 +86,7 @@ public class KeyValueStore : IKeyValueStore
 
     public async Task<int> GetIntAsync(IDocumentSession documentSession, string key, int defaultValue)
     {
-        return await _GetAsyncWithConversion(documentSession, key, defaultValue, (inString, inDefault) =>
+        return await _GetAsyncWithConversion(documentSession, key, defaultValue, (inString, _, inDefault) =>
         {
             if (!int.TryParse(inString, out var result))
             {
@@ -100,7 +99,7 @@ public class KeyValueStore : IKeyValueStore
 
     public async Task<long> GetLongAsync(IDocumentSession documentSession, string key, long defaultValue)
     {
-        return await _GetAsyncWithConversion(documentSession, key, defaultValue, (inString, inDefault) =>
+        return await _GetAsyncWithConversion(documentSession, key, defaultValue, (inString, _, inDefault) =>
         {
             if (!long.TryParse(inString, out var result))
             {
@@ -113,7 +112,7 @@ public class KeyValueStore : IKeyValueStore
 
     public async Task<float> GetFloatAsync(IDocumentSession documentSession, string key, float defaultValue)
     {
-        return await _GetAsyncWithConversion(documentSession, key, defaultValue, (inString, inDefault) =>
+        return await _GetAsyncWithConversion(documentSession, key, defaultValue, (inString, _, inDefault) =>
         {
             if (!float.TryParse(inString, out var result))
             {
@@ -126,7 +125,7 @@ public class KeyValueStore : IKeyValueStore
 
     public async Task<double> GetDoubleAsync(IDocumentSession documentSession, string key, double defaultValue)
     {
-        return await _GetAsyncWithConversion(documentSession, key, defaultValue, (inString, inDefault) =>
+        return await _GetAsyncWithConversion(documentSession, key, defaultValue, (inString, _, inDefault) =>
         {
             if (!double.TryParse(inString, out var result))
             {
@@ -140,7 +139,7 @@ public class KeyValueStore : IKeyValueStore
     public async Task<T?> GetObjectAsync<T>(IDocumentSession documentSession, string key, T? defaultValue,
         IJsonSerializer? jsonSerializer = null)
     {
-        return await _GetAsyncWithConversion(documentSession, key, defaultValue, (inString, inDefault) =>
+        return await _GetAsyncWithConversion(documentSession, key, defaultValue, (inString, storedType, inDefault) =>
         {
             if (inString == null)
             {
@@ -148,7 +147,7 @@ public class KeyValueStore : IKeyValueStore
             }
             
             var jsonSerializerToUse = jsonSerializer ?? DefaultKeyStoreJsonSerializer.Instance;
-            T? result = jsonSerializerToUse.Deserialize<T>(inString);
+            T? result = jsonSerializerToUse.Deserialize<T>(storedType, inString);
             if (result == null)
             {
                 return inDefault;
@@ -164,7 +163,7 @@ public class KeyValueStore : IKeyValueStore
         var targetEntry = await _keyValueEntryProcedures.GetValueAsync(documentSession, key);
         if (targetEntry == null)
         {
-            targetEntry = new KeyValueEntry()
+            targetEntry = new KeyValueEntry
             {
                 Key = key,
                 TypeName = nameof(String)
@@ -209,16 +208,16 @@ public class KeyValueStore : IKeyValueStore
         var targetEntry = await _keyValueEntryProcedures.GetValueAsync(documentSession, key);
         if (targetEntry == null)
         {
-            targetEntry = new KeyValueEntry()
+            targetEntry = new KeyValueEntry
             {
-                Key = key,
-                TypeName = typeof(T).FullName!
+                Key = key
             };
         }
 
         IJsonSerializer serializerToUse = jsonSerializer ?? DefaultKeyStoreJsonSerializer.Instance;
 
         targetEntry.Value = serializerToUse.Serialize(value);
+        targetEntry.TypeName = value.GetType().FullName!;
         _keyValueEntryProcedures.Store(documentSession, targetEntry);
         
     }
